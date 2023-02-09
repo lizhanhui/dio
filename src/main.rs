@@ -52,7 +52,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let submitter = uring.submitter();
     submitter.register_buffers(&bufs)?;
     submitter.register_files(&[file.as_raw_fd()])?;
-    // submitter.register_iowq_max_workers(&mut [2, 2])?;
+    submitter.register_iowq_max_workers(&mut [2, 2])?;
 
     submitter.register_enable_rings()?;
 
