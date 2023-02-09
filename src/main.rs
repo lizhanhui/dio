@@ -37,7 +37,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .build(IO_DEPTH)?;
 
     let alignment = 4096;
-    let buf_size = 4096;
+    let buf_size = 4096 * 4;
 
     let layout = Layout::from_size_align(buf_size, alignment)?;
     let ptr = unsafe { alloc::alloc(layout) };
