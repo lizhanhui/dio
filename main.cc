@@ -1,7 +1,9 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#include <cstdint>
 #endif
 
+#include <ctime>
 #include <fcntl.h>
 #include <liburing.h>
 #include <liburing/io_uring.h>
@@ -12,6 +14,43 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <unistd.h>
+
+inline long current_time_nano() {
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return ts.tv_sec * 1000000000 + ts.tv_nsec;
+}
+
+void observe(uint32_t *histogram, long elapsed) {
+  int index = elapsed / 1000000;
+  if (index >= 100) {
+    index = 100;
+  }
+  histogram[index]++;
+}
+
+void report(uint32_t *histogram) {
+  for (int i = 0; i < 101; i++) {
+    if (histogram[i]) {
+      printf("[%d, %d): %d\n", i, i + 1, histogram[i]);
+    }
+  }
+
+  for (int i = 1; i < 101; i++) {
+    histogram[i] += histogram[i - 1];
+  }
+  float percentiles[] = {0.5, 0.9, 0.99, 0.999};
+  const char *labels[] = {"p50", "p90", "p99", "p999"};
+  for (int i = 0; i < 4; i++) {
+    uint32_t index = (uint32_t)(percentiles[i] * histogram[100]);
+    for (int j = 100; j >= 0; j--) {
+      if (histogram[j] <= index) {
+        printf("%s: %d+ms\n", labels[i], j);
+        break;
+      }
+    }
+  }
+}
 
 int main(int argc, char *argv[]) {
   if (argc < 2) {
@@ -25,7 +64,7 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  long file_len = 1 << 30;
+  long file_len = 1 << 20;
   int ret = fallocate(fd, 0, 0, file_len);
   if (ret < 0) {
     fprintf(stderr, "fallocate: %s\n", strerror(errno));
@@ -71,6 +110,8 @@ int main(int argc, char *argv[]) {
   int writes = 0;
   struct io_uring_cqe *cqe;
 
+  uint32_t histogram[101] = {0};
+
   // main loop
   while (true) {
 
@@ -96,6 +137,8 @@ int main(int argc, char *argv[]) {
       if (!sqe) {
         break;
       }
+
+      io_uring_sqe_set_data(sqe, (void *)current_time_nano());
 
       io_uring_prep_writev(sqe, fd, &iov, 1, offset);
       offset += block_size;
@@ -140,10 +183,14 @@ int main(int argc, char *argv[]) {
         goto quit;
       }
 
+      long elapsed = current_time_nano() - (long)io_uring_cqe_get_data(cqe);
+      observe(histogram, elapsed);
       io_uring_cqe_seen(&ring, cqe);
       writes--;
     }
   }
+
+  report(histogram);
 
 quit:
   io_uring_queue_exit(&ring);
