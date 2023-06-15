@@ -58,20 +58,22 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
+  long file_len = 1 << 30;
+  int block_size = 1024 * 4;
+  int queue_depth = 1;
+
   int fd = open(argv[1], O_RDWR | O_CREAT | O_DSYNC | O_DIRECT, 0644);
   if (fd < 0) {
     fprintf(stderr, "open: %s\n", strerror(errno));
     return EXIT_FAILURE;
   }
 
-  long file_len = 1 << 20;
   int ret = fallocate(fd, 0, 0, file_len);
   if (ret < 0) {
     fprintf(stderr, "fallocate: %s\n", strerror(errno));
     return EXIT_FAILURE;
   }
 
-  int block_size = 4096;
   int alignment = 4096;
   void *ptr = NULL;
   ret = posix_memalign(&ptr, 4096, block_size);
@@ -89,8 +91,6 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "pwritev: %s\n", strerror(errno));
     return EXIT_FAILURE;
   }
-
-  int queue_depth = 1024;
 
   struct io_uring ring;
   struct io_uring_params params;
