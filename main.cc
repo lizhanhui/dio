@@ -15,6 +15,8 @@
 #include <sys/uio.h>
 #include <unistd.h>
 
+#include "gflags/gflags.h"
+
 inline long current_time_nano() {
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -52,17 +54,27 @@ void report(uint32_t *histogram) {
   }
 }
 
+DEFINE_string(file_name, "/data/test", "Test File Name");
+DEFINE_int64(file_len, 1024, "File Length in MiB");
+DEFINE_int32(block_size, 4096, "Block Size");
+DEFINE_int32(queue_depth, 32, "Queue Depth");
+
 int main(int argc, char *argv[]) {
-  if (argc < 2) {
-    printf("Usage: %s <filename>\n", argv[0]);
-    return EXIT_FAILURE;
-  }
+  gflags::SetUsageMessage("dio -file_name /data/test -file_len 1024 "
+                          "-block_size 4096 -queue_depth 32");
+  gflags::SetVersionString("1.0.0");
+  gflags::ParseCommandLineFlags(&argc, &argv, false);
 
-  long file_len = 1 << 30;
-  int block_size = 1024 * 4;
-  int queue_depth = 1;
+  long file_len = (1 << 20) * FLAGS_file_len;
+  int block_size = FLAGS_block_size;
+  int queue_depth = FLAGS_queue_depth;
 
-  int fd = open(argv[1], O_RDWR | O_CREAT | O_DSYNC | O_DIRECT, 0644);
+  printf("file-name: %s, file-len: %ldMiB, block-size: %d, queue-depth: %d",
+         FLAGS_file_name.c_str(), FLAGS_file_len, FLAGS_block_size,
+         FLAGS_queue_depth);
+
+  int fd = open(FLAGS_file_name.c_str(), O_RDWR | O_CREAT | O_DSYNC | O_DIRECT,
+                0644);
   if (fd < 0) {
     fprintf(stderr, "open: %s\n", strerror(errno));
     return EXIT_FAILURE;
@@ -76,7 +88,7 @@ int main(int argc, char *argv[]) {
 
   int alignment = 4096;
   void *ptr = NULL;
-  ret = posix_memalign(&ptr, 4096, block_size);
+  ret = posix_memalign(&ptr, alignment, block_size);
   if (ret) {
     fprintf(stderr, "posix_memalign: %s\n", strerror(ret));
     return EXIT_FAILURE;
