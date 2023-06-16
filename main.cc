@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
   gflags::SetUsageMessage("dio -file_name /data/test -file_len 1024 "
                           "-block_size 4096 -queue_depth 32");
   gflags::SetVersionString("1.0.0");
-  gflags::ParseCommandLineFlags(&argc, &argv, false);
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
 
   long file_len = (1 << 20) * FLAGS_file_len;
   int block_size = FLAGS_block_size;
