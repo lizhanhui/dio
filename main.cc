@@ -69,7 +69,7 @@ int main(int argc, char *argv[]) {
   int block_size = FLAGS_block_size;
   int queue_depth = FLAGS_queue_depth;
 
-  printf("file-name: %s, file-len: %ldMiB, block-size: %d, queue-depth: %d",
+  printf("file-name: %s, file-len: %ldMiB, block-size: %d, queue-depth: %d\n",
          FLAGS_file_name.c_str(), FLAGS_file_len, FLAGS_block_size,
          FLAGS_queue_depth);
 
