@@ -1,8 +1,8 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
-#include <cstdint>
 #endif
 
+#include <cstdint>
 #include <ctime>
 #include <fcntl.h>
 #include <liburing.h>
@@ -73,8 +73,8 @@ int main(int argc, char *argv[]) {
          FLAGS_file_name.c_str(), FLAGS_file_len, FLAGS_block_size,
          FLAGS_queue_depth);
 
-  int fd = open(FLAGS_file_name.c_str(), O_RDWR | O_CREAT | O_DSYNC | O_DIRECT,
-                0644);
+  int fd = open(FLAGS_file_name.c_str(),
+                O_RDWR | O_CREAT | O_DIRECT | O_NOATIME, 0644);
   if (fd < 0) {
     fprintf(stderr, "open: %s\n", strerror(errno));
     return EXIT_FAILURE;
@@ -85,6 +85,8 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "fallocate: %s\n", strerror(errno));
     return EXIT_FAILURE;
   }
+
+  fsync(fd);
 
   int alignment = 4096;
   void *ptr = NULL;
@@ -117,6 +119,18 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "io_uring_queue_init_params: %s\n", strerror(-ret));
     return EXIT_FAILURE;
   }
+
+  // fixed buffers
+  ret = io_uring_register_buffers(&ring, &iov, 1);
+  if (ret) {
+    fprintf(stderr, "Error registering buffers: %s", strerror(-ret));
+    io_uring_queue_exit(&ring);
+    close(fd);
+    return EXIT_FAILURE;
+  }
+
+  // register files
+  ret = io_uring_register_files(&ring, &fd, 1);
 
   long offset = 0;
   int writes = 0;
@@ -152,7 +166,8 @@ int main(int argc, char *argv[]) {
 
       io_uring_sqe_set_data(sqe, (void *)current_time_nano());
 
-      io_uring_prep_writev(sqe, fd, &iov, 1, offset);
+      io_uring_prep_write_fixed(sqe, 0, iov.iov_base, iov.iov_len, offset, 0);
+      sqe->flags = IOSQE_FIXED_FILE;
       offset += block_size;
       prepared++;
     }
@@ -168,8 +183,8 @@ int main(int argc, char *argv[]) {
 
     // Try to complete CQEs
     bool reaped = false;
+    long last_sync = 0;
     for (;;) {
-
       if (!reaped) {
         ret = io_uring_wait_cqe(&ring, &cqe);
         reaped = true;
