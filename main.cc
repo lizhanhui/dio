@@ -170,6 +170,10 @@ int main(int argc, char *argv[]) {
       sqe->flags = IOSQE_FIXED_FILE;
       offset += block_size;
       prepared++;
+
+      if (prepared > 4) {
+        break;
+      }
     }
 
     if (prepared) {
