@@ -189,7 +189,7 @@ int main(int argc, char *argv[]) {
     bool reaped = false;
     long last_sync = 0;
     for (;;) {
-      if (!reaped) {
+      if (!reaped && writes >= queue_depth) {
         ret = io_uring_wait_cqe(&ring, &cqe);
         reaped = true;
       } else {
